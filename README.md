@@ -1,7 +1,7 @@
 depthimage_to_laserscan
 =======================
 
-A ROS 2 driver to convert a depth image to a laser scan for use with navigation and localization.
+A ROS 2 driver to convert a depth image to a laser scan for use with navigation and localization. In this modified version, the driver can subscribe to IMU data and stabilize the laser by choosing the area on the depth image that compensates for any rotation. This is very useful with mobile robots that have non-negligible pitch and roll angles while walking.
 
 Published Topics
 ----------------
@@ -11,6 +11,7 @@ Subscribed Topics
 -----------------
 * `depth_camera_info` (`sensor_msgs/msg/CameraInfo`) - The camera info.
 * `depth` (`sensor_msgs/msg/Image`) - The depth image.
+* `imu` (`sensor_msgs/msg/Imu`) - The IMU data
 
 Parameters
 ----------
