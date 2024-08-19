@@ -37,7 +37,7 @@
 #include <random>
 
 // Bring in my package's API, which is what I'm testing
-#include <depthimage_to_laserscan/DepthImageToLaserScan.hpp>
+#include <depthimage_to_laserscan_stabilized/DepthImageToLaserScan.hpp>
 
 #include <sensor_msgs/image_encodings.hpp>
 

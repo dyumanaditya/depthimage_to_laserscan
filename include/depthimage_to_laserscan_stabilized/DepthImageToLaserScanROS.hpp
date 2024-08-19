@@ -35,14 +35,15 @@
 
 #include <memory>
 
-#include "depthimage_to_laserscan/DepthImageToLaserScanROS_export.h"
+#include "depthimage_to_laserscan_stabilized/DepthImageToLaserScanROS_export.h"
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 
-#include <depthimage_to_laserscan/DepthImageToLaserScan.hpp>
+#include <depthimage_to_laserscan_stabilized/DepthImageToLaserScan.hpp>
 
 namespace depthimage_to_laserscan
 {
@@ -66,10 +67,17 @@ private:
 
   void infoCb(sensor_msgs::msg::CameraInfo::SharedPtr info);
 
+  void imuCb(sensor_msgs::msg::Imu::SharedPtr imu);
+
   sensor_msgs::msg::CameraInfo::SharedPtr cam_info_;
 
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr depth_image_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+
+  // Variables to store previous orientation
+  double roll_;
+  double pitch_;
 
   rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr scan_pub_;
 

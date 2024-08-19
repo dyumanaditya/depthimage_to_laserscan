@@ -33,20 +33,24 @@
 #include <functional>
 #include <stdexcept>
 #include <string>
+#include <cmath>
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
-#include <depthimage_to_laserscan/DepthImageToLaserScanROS.hpp>
+#include <depthimage_to_laserscan_stabilized/DepthImageToLaserScanROS.hpp>
 
 namespace depthimage_to_laserscan
 {
 
 DepthImageToLaserScanROS::DepthImageToLaserScanROS(const rclcpp::NodeOptions & options)
-: rclcpp::Node("depthimage_to_laserscan", options)
+: rclcpp::Node("depthimage_to_laserscan", options), roll_(0), pitch_(0)
 {
   auto qos = rclcpp::SystemDefaultsQoS();
   cam_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
@@ -59,6 +63,11 @@ DepthImageToLaserScanROS::DepthImageToLaserScanROS(const rclcpp::NodeOptions & o
     this->create_subscription<sensor_msgs::msg::Image>(
     "depth", qos,
     std::bind(&DepthImageToLaserScanROS::depthCb, this, std::placeholders::_1));
+  
+  imu_sub_ =
+    this->create_subscription<sensor_msgs::msg::Imu>(
+    "imu", qos,
+    std::bind(&DepthImageToLaserScanROS::imuCb, this, std::placeholders::_1));
 
   scan_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("scan", qos);
 
@@ -92,12 +101,29 @@ void DepthImageToLaserScanROS::depthCb(const sensor_msgs::msg::Image::SharedPtr 
   }
 
   try {
-    sensor_msgs::msg::LaserScan::UniquePtr scan_msg = dtl_->convert_msg(image, cam_info_);
+    sensor_msgs::msg::LaserScan::UniquePtr scan_msg = dtl_->convert_msg(image, cam_info_, roll_, pitch_);
     scan_pub_->publish(std::move(scan_msg));
   } catch (const std::runtime_error & e) {
     RCLCPP_ERROR(get_logger(), "Could not convert depth image to laserscan: %s", e.what());
   }
 }
+
+void DepthImageToLaserScanROS::imuCb(sensor_msgs::msg::Imu::SharedPtr imu)
+{
+  // Store the roll and pitch from the IMU
+  tf2::Quaternion q;
+  tf2::fromMsg(imu->orientation, q);
+  tf2::Matrix3x3 m(q);
+  double r, p, y;
+  m.getRPY(r, p, y);
+
+  // Convert to degrees and store
+  roll_ = r;
+  pitch_ = p;
+  // roll_ = r * 180.0 / M_PI;
+  // pitch_ = p * 180.0 / M_PI;
+}
+
 }  // namespace depthimage_to_laserscan
 
 RCLCPP_COMPONENTS_REGISTER_NODE(depthimage_to_laserscan::DepthImageToLaserScanROS)

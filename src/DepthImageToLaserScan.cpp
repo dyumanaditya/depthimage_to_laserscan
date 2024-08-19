@@ -30,7 +30,7 @@
  * Author: Chad Rockey
  */
 
-#include <depthimage_to_laserscan/DepthImageToLaserScan.hpp>
+#include <depthimage_to_laserscan_stabilized/DepthImageToLaserScan.hpp>
 
 #include <cmath>
 #include <limits>
@@ -104,7 +104,8 @@ bool DepthImageToLaserScan::use_point(
 
 sensor_msgs::msg::LaserScan::UniquePtr DepthImageToLaserScan::convert_msg(
   const sensor_msgs::msg::Image::ConstSharedPtr & depth_msg,
-  const sensor_msgs::msg::CameraInfo::ConstSharedPtr & info_msg)
+  const sensor_msgs::msg::CameraInfo::ConstSharedPtr & info_msg,
+  double roll, double pitch)
 {
   // Set camera model
   cam_model_.fromCameraInfo(info_msg);
@@ -156,9 +157,9 @@ sensor_msgs::msg::LaserScan::UniquePtr DepthImageToLaserScan::convert_msg(
   scan_msg->ranges.assign(ranges_size, std::numeric_limits<float>::quiet_NaN());
 
   if (depth_msg->encoding == sensor_msgs::image_encodings::TYPE_16UC1) {
-    convert<uint16_t>(depth_msg, cam_model_, scan_msg, scan_height_);
+    convert<uint16_t>(depth_msg, cam_model_, scan_msg, scan_height_, roll, pitch);
   } else if (depth_msg->encoding == sensor_msgs::image_encodings::TYPE_32FC1) {
-    convert<float>(depth_msg, cam_model_, scan_msg, scan_height_);
+    convert<float>(depth_msg, cam_model_, scan_msg, scan_height_, roll, pitch);
   } else {
     std::stringstream ss;
     ss << "Depth image has unsupported encoding: " << depth_msg->encoding;

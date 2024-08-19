@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>depthimage_to_laserscan</name>
+  <name>depthimage_to_laserscan_stabilized</name>
   <version>2.5.1</version>
   <description>depthimage_to_laserscan</description>
   <author>Chad Rockey</author>
@@ -18,6 +18,8 @@
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>ament_lint_auto</test_depend>

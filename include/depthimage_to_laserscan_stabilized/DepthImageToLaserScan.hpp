@@ -35,9 +35,10 @@
 
 #include <cmath>
 #include <string>
+#include <algorithm>
 
-#include "depthimage_to_laserscan/DepthImageToLaserScan_export.h"
-#include "depthimage_to_laserscan/depth_traits.hpp"
+#include "depthimage_to_laserscan_stabilized/DepthImageToLaserScan_export.h"
+#include "depthimage_to_laserscan_stabilized/depth_traits.hpp"
 #if __has_include("image_geometry/pinhole_camera_model.hpp")
 #include "image_geometry/pinhole_camera_model.hpp"
 #else
@@ -50,6 +51,8 @@
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
+#include <iostream>
+// #include <rclcpp/rclcpp.hpp>
 
 namespace depthimage_to_laserscan
 {
@@ -89,12 +92,15 @@ public:
    *
    * @param depth_msg UInt16 or Float32 encoded depth image.
    * @param info_msg CameraInfo associated with depth_msg
+   * @param roll The roll of the camera (rotation around x-axis)
+   * @param pitch The pitch of the camera (rotation around y-axis)
    * @return sensor_msgs::msg::LaserScan::SharedPtr for the center row(s) of the depth image.
    *
    */
   sensor_msgs::msg::LaserScan::UniquePtr convert_msg(
     const sensor_msgs::msg::Image::ConstSharedPtr & depth_msg,
-    const sensor_msgs::msg::CameraInfo::ConstSharedPtr & info_msg);
+    const sensor_msgs::msg::CameraInfo::ConstSharedPtr & info_msg,
+    double roll=0, double pitch=0);
 
 private:
   /**
@@ -149,49 +155,78 @@ private:
    * @param cam_model The image_geometry camera model for this image.
    * @param scan_msg The output LaserScan.
    * @param scan_height The number of vertical pixels to feed into each angular_measurement.
+   * @param roll The roll of the camera (rotation around x-axis)
+   * @param pitch The pitch of the camera (rotation around y-axis)
    *
    */
   template<typename T>
   void convert(
     const sensor_msgs::msg::Image::ConstSharedPtr & depth_msg,
     const image_geometry::PinholeCameraModel & cam_model,
-    const sensor_msgs::msg::LaserScan::UniquePtr & scan_msg, const int & scan_height) const
+    const sensor_msgs::msg::LaserScan::UniquePtr & scan_msg, const int & scan_height,
+    const double roll, const double pitch) const
   {
     // Use correct principal point from calibration
     float center_x = cam_model.cx();
+    float center_y = cam_model.cy();
 
     // Combine unit conversion (if necessary) with scaling by focal length for computing (X,Y)
     double unit_scaling = depthimage_to_laserscan::DepthTraits<T>::toMeters(T(1));
     float constant_x = unit_scaling / cam_model.fx();
 
-    const T * depth_row = reinterpret_cast<const T *>(&depth_msg->data[0]);
     int row_step = depth_msg->step / sizeof(T);
 
-    int offset = static_cast<int>(cam_model.cy() - static_cast<double>(scan_height) / 2.0);
-    depth_row += offset * row_step;  // Offset to center of image
-    for (int v = offset; v < offset + scan_height_; v++, depth_row += row_step) {
-      for (uint32_t u = 0; u < depth_msg->width; u++) {  // Loop over each pixel in row
-        T depth = depth_row[u];
+    // Calculate tangent of negative roll which gives us the slope
+    // Negative "undoes" the rotation direction. 
+    // If we have positive roll (cw), we have negative slope. If we have negative roll (ccw), we have positive slope.
+    double tan_roll = std::tan(-roll);
 
-        double r = depth;  // Assign to pass through NaNs and Infs
-        // Atan2(x, z), but depth divides out
-        double th = -std::atan2(static_cast<double>(u - center_x) * constant_x, unit_scaling);
-        int index = (th - scan_msg->angle_min) / scan_msg->angle_increment;
+    // Calculate the vertical shift due to pitch
+    // The scaling factor depends on your camera's focal length and the expected range of pitch angles
+    double pitch_shift = std::tan(pitch) * cam_model.fy();
 
-        if (depthimage_to_laserscan::DepthTraits<T>::valid(depth)) {  // Not NaN or Inf
-          // Calculate in XYZ
-          double x = (u - center_x) * depth * constant_x;
-          double z = depthimage_to_laserscan::DepthTraits<T>::toMeters(depth);
+    // Iterate over the height of the scan window
+    int offset = static_cast<int>(center_y - static_cast<double>(scan_height) / 2.0);
+    for (uint32_t u = 0; u < depth_msg->width; ++u) 
+    {
+        // const T * depth_row_offset = reinterpret_cast<const T *>(&depth_msg->data[0]);
+        // depth_row_offset += offset * row_step;
+        for (int o = offset; o < offset + scan_height; ++o) {
+            const T * depth_row = reinterpret_cast<const T *>(&depth_msg->data[0]);
+    
+            // Calculate the slanted line's row index (v) based on roll and pitch
+            double slanted_v = o + (u - center_x) * tan_roll - pitch_shift;
 
-          // Calculate actual distance
-          r = std::sqrt(std::pow(x, 2.0) + std::pow(z, 2.0));
+            // std::cout << "SLANTED_V: " << slanted_v << std::endl;
+
+            // Round to nearest integer since we're dealing with pixel indices
+            int rounded_v = static_cast<int>(std::round(slanted_v));
+
+            // Ensure v is within image bounds
+            if (rounded_v >= 0 && rounded_v < static_cast<int>(depth_msg->height)) {
+                // Offset the depth row according to the slanted line
+                depth_row += rounded_v * row_step;
+                T depth = depth_row[u];
+
+                double r = depth;  // Assign to pass through NaNs and Infs
+                double th = -std::atan2(static_cast<double>(u - center_x) * constant_x, unit_scaling);
+                int index = static_cast<int>((th - scan_msg->angle_min) / scan_msg->angle_increment);
+
+                if (depthimage_to_laserscan::DepthTraits<T>::valid(depth)) {  // Not NaN or Inf
+                    // Calculate in XYZ
+                    double x = (u - center_x) * depth * constant_x;
+                    double z = depthimage_to_laserscan::DepthTraits<T>::toMeters(depth);
+
+                    // Calculate actual distance
+                    r = std::sqrt(std::pow(x, 2.0) + std::pow(z, 2.0));
+                }
+
+                // Determine if this point should be used.
+                if (use_point(r, scan_msg->ranges[index], scan_msg->range_min, scan_msg->range_max)) {
+                    scan_msg->ranges[index] = r;
+                }
+            }
         }
-
-        // Determine if this point should be used.
-        if (use_point(r, scan_msg->ranges[index], scan_msg->range_min, scan_msg->range_max)) {
-          scan_msg->ranges[index] = r;
-        }
-      }
     }
   }
 
