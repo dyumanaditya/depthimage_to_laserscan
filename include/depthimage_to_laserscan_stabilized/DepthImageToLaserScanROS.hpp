@@ -79,6 +79,9 @@ private:
   double roll_;
   double pitch_;
 
+  // Whether to use IMU to stabilize the scan
+  bool use_imu_stabilization_;
+
   rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr scan_pub_;
 
   ///< Instance of the DepthImageToLaserScan conversion class.

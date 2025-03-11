@@ -78,7 +78,7 @@ DepthImageToLaserScanROS::DepthImageToLaserScanROS(const rclcpp::NodeOptions & o
 
   int scan_height = this->declare_parameter("scan_height", 1);
 
-  bool use_imu_stabilization = this->declare_parameter("use_imu_stabilization", true);
+  use_imu_stabilization_ = this->declare_parameter("use_imu_stabilization", true);
 
   std::string output_frame = this->declare_parameter("output_frame", "camera_depth_frame");
 
@@ -100,6 +100,12 @@ void DepthImageToLaserScanROS::depthCb(const sensor_msgs::msg::Image::SharedPtr 
   if (nullptr == cam_info_) {
     RCLCPP_INFO(get_logger(), "No camera info, skipping point cloud squash");
     return;
+  }
+
+  if (!use_imu_stabilization_)
+  {
+    roll_ = 0;
+    pitch_ = 0;
   }
 
   try {
