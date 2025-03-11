@@ -78,7 +78,7 @@ DepthImageToLaserScanROS::DepthImageToLaserScanROS(const rclcpp::NodeOptions & o
 
   int scan_height = this->declare_parameter("scan_height", 1);
 
-  use_imu_stabilization_ = this->declare_parameter("use_imu_stabilization", true);
+  use_imu_stabilization_ = this->declare_parameter("use_imu_stabilization", true).as_bool();
 
   std::string output_frame = this->declare_parameter("output_frame", "camera_depth_frame");
 
