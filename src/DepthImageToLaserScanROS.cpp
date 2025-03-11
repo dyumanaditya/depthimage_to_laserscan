@@ -78,6 +78,8 @@ DepthImageToLaserScanROS::DepthImageToLaserScanROS(const rclcpp::NodeOptions & o
 
   int scan_height = this->declare_parameter("scan_height", 1);
 
+  bool use_imu_stabilization = this->declare_parameter("use_imu_stabilization", true);
+
   std::string output_frame = this->declare_parameter("output_frame", "camera_depth_frame");
 
   dtl_ = std::make_unique<depthimage_to_laserscan::DepthImageToLaserScan>(
@@ -117,7 +119,7 @@ void DepthImageToLaserScanROS::imuCb(sensor_msgs::msg::Imu::SharedPtr imu)
   double r, p, y;
   m.getRPY(r, p, y);
 
-  // Convert to degrees and store
+  // Radians
   roll_ = r;
   pitch_ = p;
   // roll_ = r * 180.0 / M_PI;
