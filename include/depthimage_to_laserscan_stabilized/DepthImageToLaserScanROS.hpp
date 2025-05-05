@@ -42,6 +42,8 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
+#include <deque>
+#include <mutex>
 
 #include <depthimage_to_laserscan_stabilized/DepthImageToLaserScan.hpp>
 
@@ -74,6 +76,11 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr depth_image_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+
+  // IMU buffering
+  std::deque<sensor_msgs::msg::Imu::SharedPtr> imu_buffer_;
+  std::mutex imu_buffer_mutex_;
+  size_t imu_buffer_size_;
 
   // Variables to store previous orientation
   double roll_;

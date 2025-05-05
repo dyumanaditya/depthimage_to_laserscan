@@ -82,6 +82,10 @@ DepthImageToLaserScanROS::DepthImageToLaserScanROS(const rclcpp::NodeOptions & o
 
   std::string output_frame = this->declare_parameter("output_frame", "camera_depth_frame");
 
+  // // how many imu messages to buffer
+  // int buf_size = declare_parameter("imu_buffer_size", 200);
+  // imu_buffer_size_ = static_cast<size_t>(buf_size);
+
   dtl_ = std::make_unique<depthimage_to_laserscan::DepthImageToLaserScan>(
     scan_time, range_min, range_max, scan_height, output_frame);
 }
@@ -92,7 +96,7 @@ DepthImageToLaserScanROS::~DepthImageToLaserScanROS()
 
 void DepthImageToLaserScanROS::infoCb(sensor_msgs::msg::CameraInfo::SharedPtr info)
 {
-  cam_info_ = info;
+  cam_info_ = std::move(info);
 }
 
 void DepthImageToLaserScanROS::depthCb(const sensor_msgs::msg::Image::SharedPtr image)
@@ -131,6 +135,72 @@ void DepthImageToLaserScanROS::imuCb(sensor_msgs::msg::Imu::SharedPtr imu)
   // roll_ = r * 180.0 / M_PI;
   // pitch_ = p * 180.0 / M_PI;
 }
+
+
+// void DepthImageToLaserScanROS::depthCb(const sensor_msgs::msg::Image::SharedPtr image)
+// {
+//   if (!cam_info_) {
+//     RCLCPP_INFO(get_logger(), "No camera info yet, skipping scan");
+//     return;
+//   }
+
+//   double roll = 0.0, pitch = 0.0;
+//   if (use_imu_stabilization_) {
+//     // Convert header stamps to rclcpp::Time
+//     rclcpp::Time img_time(image->header.stamp);
+//     sensor_msgs::msg::Imu::SharedPtr best_imu;
+
+//     {
+//       std::lock_guard<std::mutex> lock(imu_buffer_mutex_);
+//       if (!imu_buffer_.empty()) {
+//         // Initialize with first element
+//         auto it_best = imu_buffer_.begin();
+//         rclcpp::Time best_time((*it_best)->header.stamp);
+//         int64_t best_diff = std::abs((img_time - best_time).nanoseconds());
+
+//         // Find the IMU message with the smallest time difference
+//         for (auto it = it_best + 1; it != imu_buffer_.end(); ++it) {
+//           rclcpp::Time t((*it)->header.stamp);
+//           int64_t diff = std::abs((img_time - t).nanoseconds());
+//           if (diff < best_diff) {
+//             best_diff = diff;
+//             it_best = it;
+//           }
+//         }
+//         best_imu = *it_best;
+//       }
+//     }
+
+//     // If we found one, compute roll/pitch from it
+//     if (best_imu) {
+//       tf2::Quaternion q;
+//       tf2::fromMsg(best_imu->orientation, q);
+//       tf2::Matrix3x3 m(q);
+//       double r, p, y;
+//       m.getRPY(r, p, y);
+//       roll  = r;
+//       pitch = p;
+//     }
+//   }
+
+//   // Generate and publish the scan
+//   try {
+//     auto scan_msg = dtl_->convert_msg(image, cam_info_, roll, pitch);
+//     scan_pub_->publish(std::move(scan_msg));
+//   } catch (const std::runtime_error & e) {
+//     RCLCPP_ERROR(get_logger(), "Could not convert depth image to laserscan: %s", e.what());
+//   }
+// }
+
+// void DepthImageToLaserScanROS::imuCb(sensor_msgs::msg::Imu::SharedPtr imu)
+// {
+//   // Push into bounded buffer
+//   std::lock_guard<std::mutex> lock(imu_buffer_mutex_);
+//   imu_buffer_.push_back(std::move(imu));
+//   if (imu_buffer_.size() > imu_buffer_size_) {
+//     imu_buffer_.pop_front();
+//   }
+// }
 
 }  // namespace depthimage_to_laserscan
 
